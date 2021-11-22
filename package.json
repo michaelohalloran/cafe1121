@@ -11,8 +11,6 @@
   "type": "module",
   "license": "ISC",
   "dependencies": {
-    "csv": "^6.0.4",
-    "csv-parser": "^3.0.0",
     "csv-writer": "^1.6.0",
     "neat-csv": "^7.0.0"
   }
