@@ -1,14 +1,10 @@
 import neatCsv from 'neat-csv';
-// const neatCsv = require('neat-csv');
 import { parse } from 'csv';
 import csvParser from 'csv-parser';
-// const { parse } = require('csv');
-import csvWriter from 'csv-writer';
+import { createObjectCsvWriter } from 'csv-writer';
 import fs from 'fs';
 import * as fsPromises from 'fs/promises';
-// const fsPromises = require('fs/promises');
 import path, { dirname } from 'path';
-// const path = require('path');
 
 
 const CSV_FILE_PATH = 'posts.csv';
@@ -20,38 +16,22 @@ const PUBLIC = 'public';
 
 (async function init() {
     const csvFile = await fsPromises.readFile(CSV_FILE_PATH, 'utf-8');
-    // const data = [];
-    // fs.createReadStream(CSV_FILE_PATH)
-    //     .pipe(csvParser())
-    //     .on('data', row => {
-    //         // console.log('row: ', row);
-    //         data.push(row);
-    //     })
-    //     .on('end', () => {
-    //         console.log('data: ', data.filter(post => post.id === '4839504'));
-    //     })
-    
-
-    // const parsed = await parse(csvFile);
-    // console.log('csv: ', parsed);
     const postList = await neatCsv(csvFile);
-    // const postList = await neatCsv(csvFile, {escape: '"', quote: '"'});
-    // const postList = await neatCsv(csvFile, {escape: '"', quote: '"', strict: true});
     const formattedData = postList.reduce((output, post) => {
         return post.timestamp ? output.concat(post) : output.concat(fixData(post));
     }, []);
-    // console.log('bad: ', formattedData.filter(post => post.id === '4839504'));
-
-    // console.log('postList: ', postList.slice(0,3), Array.isArray(postList), 'id: ', typeof postList[0].id);
-    // console.log('csv: ', postList.filter(post => ['4839504', '4839506'].includes(post.id)));
     const output = generatePostLists(formattedData);
     console.log('output: ', output);
-    // const { topPosts, otherPosts, dailyTopPosts } = output;
+    const { topPosts, otherPosts, dailyTopPosts } = output;
+    const dailyTopPostValues = Object.values(dailyTopPosts);
 
     // const topPostsWrite = fsPromises.writeFile(TOP_POSTS_PATH, topPosts);
+    const topPostsWrite = writeCsv(topPosts, TOP_POSTS_PATH);
+    const otherPostsWrite = writeCsv(otherPosts, OTHER_POSTS_PATH);
+    const dailyTopPostsWrite = writeCsv(dailyTopPostValues, DAILY_TOP_POSTS_PATH);
     // const otherPostsWrite = fsPromises.writeFile(OTHER_POSTS_PATH, otherPosts);
-    // const writeRequests = [topPostsWrite, otherPostsWrite];
-    // await Promise.all(writeRequests);
+    const writeRequests = [topPostsWrite, otherPostsWrite, dailyTopPostsWrite];
+    await Promise.all(writeRequests);
     // BONUS:
     // output json
     // output full record, not just id
@@ -72,15 +52,25 @@ function fixData(post) {
     return { id, title, privacy, likes, views, comments, timestamp};
 }
 
+async function writeCsv(postList, path) {
+    return createObjectCsvWriter({
+        path,
+        header: [
+            {id: 'id'}
+        ]
+    })
+    .writeRecords(postList);
+}
+
 function generatePostLists(postList) {
     return postList.reduce((lists, post) => {
         const { id, privacy, views, comments, title, likes, timestamp } = post;
         const date = parseDate(timestamp);
         const isTopPost = (privacy === PUBLIC) && (title.length < 40) && (+comments > 10) && (+views > 9000); 
         if (isTopPost) {
-            lists.topPosts.push(id);
+            lists.topPosts.push(post);
         } else {
-            lists.otherPosts.push(id);
+            lists.otherPosts.push(post);
         }
         
         const isNewDay = !lists.dailyTopPosts[date]; // if current date has no posts yet, its first post automatically becomes the most-liked
